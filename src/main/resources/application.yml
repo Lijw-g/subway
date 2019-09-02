@@ -1,1 +1,5 @@
-
+spring:
+  application:
+    name: subway-datas
+  profiles:
+    active: dev
