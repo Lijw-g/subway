@@ -1,14 +1,16 @@
 package com.subwaydata.subway.service;
- 
+
 import com.subwaydata.subway.thread.ThreadPoolManager;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
+import javax.servlet.ServletOutputStream;
 import javax.servlet.annotation.WebListener;
+import javax.sound.midi.Soundbank;
 import java.io.*;
 import java.net.*;
 import java.util.logging.Logger;
- 
+
 /*
  * 服务器端，实现基于UDP的用户登陆
  */
@@ -19,7 +21,7 @@ public class UDPServer implements ServletContextListener {
     public static final int UDP_PORT = 8081;
     public static DatagramPacket packet = null;
     public static DatagramSocket socket = null;
- 
+
     @Override
     public void contextInitialized(ServletContextEvent sce) {
         try {
@@ -30,16 +32,16 @@ public class UDPServer implements ServletContextListener {
         } catch (Exception e) {
             e.printStackTrace();
         }
- 
+
     }
- 
+
     class UDPProcess implements Runnable {
- 
+
         public UDPProcess(final int port) throws SocketException {
             //创建服务器端DatagramSocket，指定端口
             socket = new DatagramSocket(port);
         }
- 
+
         @Override
         public void run() {
             // TODO Auto-generated method stub
@@ -55,24 +57,25 @@ public class UDPServer implements ServletContextListener {
                     e.printStackTrace();
                 }
             }
- 
+
         }
     }
- 
+
     class Process implements Runnable {
         public Process(DatagramPacket packet) throws UnsupportedEncodingException {
             // TODO Auto-generated constructor stub
             logger.info("=======接收到的UDP信息======");
-            byte[] buffer = packet.getData();// 接收到的UDP信息，然后解码
-//            String srt1 = new String(buffer, "GBK").trim();
- //            logger.info("=======Process srt1 GBK======" + srt1);
+            // 接收到的UDP信息，然后解码
+            byte[] buffer = packet.getData();
             String srt2 = new String(buffer, "UTF-8").trim();
             System.out.println("=======Process srt2 UTF-8======" + srt2);
             logger.info("=======Process srt2 UTF-8======" + srt2);
-//            String srt3 = new String(buffer, "ISO-8859-1").trim();
-//            logger.info("=======Process srt3 ISO-8859-1======" + srt3);
+            //String srt1 = new String(buffer, "GBK").trim();
+            //ogger.info("=======Process srt1 GBK======" + srt1);
+            // String srt3 = new String(buffer, "ISO-8859-1").trim();
+           //logger.info("=======Process srt3 ISO-8859-1======" + srt3);
         }
- 
+
         @Override
         public void run() {
             // TODO Auto-generated method stub
@@ -91,13 +94,13 @@ public class UDPServer implements ServletContextListener {
                 e.printStackTrace();
             }
         }
- 
+
     }
- 
+
     @Override
     public void contextDestroyed(ServletContextEvent sce) {
         logger.info("========UDPListener摧毁=========");
     }
- 
- 
+
+
 }
