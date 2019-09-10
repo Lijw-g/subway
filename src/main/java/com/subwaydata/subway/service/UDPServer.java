@@ -1,6 +1,8 @@
 package com.subwaydata.subway.service;
 
+import com.subwaydata.subway.kafka.KafkaSender;
 import com.subwaydata.subway.thread.ThreadPoolManager;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -21,7 +23,8 @@ public class UDPServer implements ServletContextListener {
     public static final int UDP_PORT = 8081;
     public static DatagramPacket packet = null;
     public static DatagramSocket socket = null;
-
+    @Autowired
+    private KafkaSender<String> kafkaSender;
     @Override
     public void contextInitialized(ServletContextEvent sce) {
         try {
@@ -69,6 +72,7 @@ public class UDPServer implements ServletContextListener {
             byte[] buffer = packet.getData();
             String srt2 = new String(buffer, "UTF-8").trim();
             System.out.println("=======Process srt2 UTF-8======" + srt2);
+            kafkaSender.send(srt2);
             logger.info("=======Process srt2 UTF-8======" + srt2);
             //String srt1 = new String(buffer, "GBK").trim();
             //ogger.info("=======Process srt1 GBK======" + srt1);
