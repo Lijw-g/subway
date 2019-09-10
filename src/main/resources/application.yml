@@ -25,6 +25,7 @@ spring:
     # 指定listener 容器中的线程数，用于提高并发量
     listener:
       concurrency: 3
-
+server:
+  port: 8002
   profiles:
     active: dev
