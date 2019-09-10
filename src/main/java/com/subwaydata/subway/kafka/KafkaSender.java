@@ -1,8 +1,6 @@
 package com.subwaydata.subway.kafka;
 
 import com.alibaba.fastjson.JSON;
-import com.subwaydata.subway.service.UDPServer;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
@@ -21,7 +19,7 @@ import java.util.logging.Logger;
 @Component
 public class KafkaSender<T> {
 
-    public static Logger logger = Logger.getLogger(UDPServer.class.getName());
+    public static Logger logger = Logger.getLogger(KafkaSender.class.getName());
 
     @Autowired
     private KafkaTemplate<String, Object> kafkaTemplate;
