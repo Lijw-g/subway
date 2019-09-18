@@ -19,7 +19,7 @@ import java.util.logging.Logger;
 @WebListener
 public class UDPServer implements ServletContextListener {
     public static Logger logger = Logger.getLogger(UDPServer.class.getName());
-    public static final int MAX_UDP_DATA_SIZE = 4096;
+    public static final int MAX_UDP_DATA_SIZE = 20;
     public static final int UDP_PORT = 8081;
     public static DatagramPacket packet = null;
     public static DatagramSocket socket = null;
@@ -70,14 +70,9 @@ public class UDPServer implements ServletContextListener {
             logger.info("=======接收到的UDP信息======");
             // 接收到的UDP信息，然后解码
             byte[] buffer = packet.getData();
-            String srt2 = new String(buffer, "UTF-8").trim();
-            System.out.println("=======Process srt2 UTF-8======" + srt2);
+            String srt2 = bytes2HexString(buffer);
             kafkaSender.send(srt2);
             logger.info("=======Process srt2 UTF-8======" + srt2);
-            //String srt1 = new String(buffer, "GBK").trim();
-            //ogger.info("=======Process srt1 GBK======" + srt1);
-            // String srt3 = new String(buffer, "ISO-8859-1").trim();
-           //logger.info("=======Process srt3 ISO-8859-1======" + srt3);
         }
 
         @Override
@@ -105,6 +100,19 @@ public class UDPServer implements ServletContextListener {
     public void contextDestroyed(ServletContextEvent sce) {
         logger.info("========UDPListener摧毁=========");
     }
-
+    /**
+     * byte[] 转为16进制String
+     */
+    public static String bytes2HexString(byte[] b) {
+        String ret = "";
+        for (int i = 0; i < b.length; i++) {
+            String hex = Integer.toHexString(b[i] & 0xFF);
+            if (hex.length() == 1) {
+                hex = '0' + hex;
+            }
+            ret += hex.toUpperCase();
+        }
+        return ret;
+    }
 
 }

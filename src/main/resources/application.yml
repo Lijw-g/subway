@@ -29,3 +29,5 @@ server:
   port: 8002
   profiles:
     active: dev
+  server:
+    port: 8088
