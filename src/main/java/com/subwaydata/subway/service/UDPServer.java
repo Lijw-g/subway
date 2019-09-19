@@ -6,9 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
-import javax.servlet.ServletOutputStream;
 import javax.servlet.annotation.WebListener;
-import javax.sound.midi.Soundbank;
 import java.io.*;
 import java.net.*;
 import java.util.logging.Logger;
@@ -19,12 +17,13 @@ import java.util.logging.Logger;
 @WebListener
 public class UDPServer implements ServletContextListener {
     public static Logger logger = Logger.getLogger(UDPServer.class.getName());
-    public static final int MAX_UDP_DATA_SIZE = 20;
+    public static final int MAX_UDP_DATA_SIZE = 1024;
     public static final int UDP_PORT = 8081;
     public static DatagramPacket packet = null;
     public static DatagramSocket socket = null;
     @Autowired
     private KafkaSender<String> kafkaSender;
+
     @Override
     public void contextInitialized(ServletContextEvent sce) {
         try {
@@ -55,7 +54,25 @@ public class UDPServer implements ServletContextListener {
                 try {
                     logger.info("=======此方法在接收到数据报之前会一直阻塞======");
                     socket.receive(packet);
-                    new Thread(new Process(packet)).start();
+                    // new Thread(new Process(packet)).start();
+                    logger.info("=======接收到的UDP信息======");
+                    // 接收到的UDP信息，然后解码
+                    byte[] datas = packet.getData();
+                    String data = bytes2HexString(datas);
+                    kafkaSender.send(data);
+                    logger.info("=======Process srt2 UTF-8======" + data);
+                    //此后判断数据是否正常
+                    if (1 == 1) {
+                        logger.info("====向客户端响应数据=====");
+                        //1.定义客户端的地址、端口号、数据
+                        InetAddress address = packet.getAddress();
+                        int port = packet.getPort();
+                        byte[] data2 = "EA 6A 11 00 13 60 01 55 26 5F FF 72 0E 01 00 01 xx xx 0D 0A".getBytes();
+                        //2.创建数据报，包含响应的数据信息
+                        DatagramPacket packet2 = new DatagramPacket(data2, data2.length, address, port);
+                        //3.响应客户端
+                        socket.send(packet2);
+                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -66,7 +83,6 @@ public class UDPServer implements ServletContextListener {
 
     class Process implements Runnable {
         public Process(DatagramPacket packet) throws UnsupportedEncodingException {
-            // TODO Auto-generated constructor stub
             logger.info("=======接收到的UDP信息======");
             // 接收到的UDP信息，然后解码
             byte[] buffer = packet.getData();
@@ -77,7 +93,6 @@ public class UDPServer implements ServletContextListener {
 
         @Override
         public void run() {
-            // TODO Auto-generated method stub
             logger.info("====过程运行=====");
             try {
                 logger.info("====向客户端响应数据=====");
@@ -100,6 +115,7 @@ public class UDPServer implements ServletContextListener {
     public void contextDestroyed(ServletContextEvent sce) {
         logger.info("========UDPListener摧毁=========");
     }
+
     /**
      * byte[] 转为16进制String
      */
