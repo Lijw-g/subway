@@ -17,7 +17,7 @@ import java.util.logging.Logger;
 @WebListener
 public class UDPServer implements ServletContextListener {
     public static Logger logger = Logger.getLogger(UDPServer.class.getName());
-    public static final int MAX_UDP_DATA_SIZE = 1024;
+    public static final int MAX_UDP_DATA_SIZE = 42;
     public static final int UDP_PORT = 8081;
     public static DatagramPacket packet = null;
     public static DatagramSocket socket = null;
@@ -46,7 +46,6 @@ public class UDPServer implements ServletContextListener {
 
         @Override
         public void run() {
-            // TODO Auto-generated method stub
             logger.info("=======创建数据报，用于接收客户端发送的数据======");
             while (true) {
                 byte[] buffer = new byte[MAX_UDP_DATA_SIZE];
