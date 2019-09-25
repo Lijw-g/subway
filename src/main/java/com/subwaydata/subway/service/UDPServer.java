@@ -2,13 +2,17 @@ package com.subwaydata.subway.service;
 
 import com.subwaydata.subway.kafka.KafkaSender;
 import com.subwaydata.subway.thread.ThreadPoolManager;
+import com.subwaydata.subway.util.CRC16Util;
+import com.subwaydata.subway.util.DataUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import sun.applet.resources.MsgAppletViewer;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 import javax.servlet.annotation.WebListener;
 import java.io.*;
 import java.net.*;
+import java.util.Calendar;
 import java.util.logging.Logger;
 
 /**
@@ -46,69 +50,122 @@ public class UDPServer implements ServletContextListener {
 
         @Override
         public void run() {
-            // TODO Auto-generated method stub
-            logger.info("=======创建数据报，用于接收客户端发送的数据======");
-            while (true) {
+            try {
+                while (true) {
+
                 byte[] buffer = new byte[MAX_UDP_DATA_SIZE];
                 packet = new DatagramPacket(buffer, buffer.length);
-                try {
-                    logger.info("=======此方法在接收到数据报之前会一直阻塞======");
+
+                    //logger.info("=======此方法在接收到数据报之前会一直阻塞======");
                     socket.receive(packet);
-                    // new Thread(new Process(packet)).start();
-                    logger.info("=======接收到的UDP信息======");
                     // 接收到的UDP信息，然后解码
                     byte[] datas = packet.getData();
                     String data = bytes2HexString(datas);
-                    kafkaSender.send(data);
-                    logger.info("=======Process srt2 UTF-8======" + data);
-                    //此后判断数据是否正常
-                    if (1 == 1) {
-                        logger.info("====向客户端响应数据=====");
-                        //1.定义客户端的地址、端口号、数据
-                        InetAddress address = packet.getAddress();
-                        int port = packet.getPort();
-                        byte[] data2 = "EA 6A 11 00 13 60 01 55 26 5F FF 72 0E 01 00 01 xx xx 0D 0A".getBytes();
-                        //2.创建数据报，包含响应的数据信息
+                    String order = data.substring(22, 26);
+                    InetAddress address = packet.getAddress();
+                    int port = packet.getPort();
+                    if ("720E".equals(order)) {
+                        kafkaSender.send(data);
+                        String responsData="EA6A110013600155265FFF720E01000100000D0A";
+                        byte[] data2 = DataUtil.creatDate(responsData);
                         DatagramPacket packet2 = new DatagramPacket(data2, data2.length, address, port);
+
                         //3.响应客户端
                         socket.send(packet2);
+                        logger.info("向传感器响应的数据是" + packet2.toString());
+
                     }
-                } catch (IOException e) {
-                    e.printStackTrace();
+
+                    if ("740C".equals(order)) {
+                        /***
+                         年( 2 字 节 )
+                         前低后高，比如 2019 年表示为 E3 07
+                         月( 1 字 节 )
+                         比如 12 月表示为 0C
+                         日( 1 字 节 )
+                         比如 30 日表示为 1E
+                         时( 1 字 节 )
+                         比如 23 时表示为 17
+                         分( 1 字 节 )
+                         比如 59 分表示为 3B
+                         秒( 1 字 节 )
+                         比如 59 秒表示为 3B*/
+                        StringBuilder answerSb = new StringBuilder();
+                        answerSb.append("EA6A18002306010226FFFF74");
+                        Calendar now = Calendar.getInstance();
+                        answerSb.append(getYearToHex(String.valueOf(now.get(Calendar.YEAR))));
+                        answerSb.append(getOther(now.get(Calendar.MONTH)+1));
+                        answerSb.append(getOther(now.get(Calendar.DAY_OF_MONTH)));
+                        answerSb.append(getOther(now.get(Calendar.HOUR_OF_DAY)));
+                        answerSb.append(getOther(now.get(Calendar.MINUTE)));
+                        answerSb.append(getOther(now.get(Calendar.SECOND)));
+                        answerSb.append("0000");
+                        answerSb.append("0A0D");
+                        byte[] answer = DataUtil.creatDate(answerSb.toString());
+
+                        DatagramPacket packet2 = new DatagramPacket(answer, answer.length, address, port);
+                        //3.响应客户端
+                        String diviceStatus = data.substring(26, 28);
+                        if ("00".equals(diviceStatus)) {
+                            logger.info("工作状态正常");
+                        } else if ("E1".equals(diviceStatus)) {
+                            logger.info("采集终端异常");
+                        } else if ("E2".equals(diviceStatus)) {
+                            logger.info("电压传感器异常");
+                        } else if ("E3".equals(diviceStatus)) {
+                            logger.info("电流传感器异常");
+                        } else {
+                            logger.info("未知异常");
+
+                        }
+                        socket.send(packet2);
+                        logger.info("心跳向传感器响应的数据是" + answerSb.toString());
+                    }
+                    //当前采集终端编码 0x7211
+                    if("7211".equals(order)){
+                        String msg="EA6A11002306010226FFFF711100000D0A";
+                        byte[] msgs = DataUtil.creatDate(msg);
+                        DatagramPacket packet = new DatagramPacket(msgs, msgs.length, address, port);
+                        socket.send(packet);
+                        logger.info("发送给终端读取终端编码命令为"+msg);
+                        logger.info("读取到的信息为"+data);
+                        logger.info("接受到的编码为"+data.substring(26,54));
+                        //0x23 0x06 0x01 0x02 0x26 0xFF 0xFF (不足 14 位、用“F”补齐，预留)，
+                        // 表示为广东省 广州市1号线第2号列车第2节车厢6号门
+                        String codeInfo=data.substring(26,54);
+                        String pro=codeInfo.substring(0,2);
+                        logger.info("省份代码"+pro);
+                        String cityId=codeInfo.substring(2,4);
+                        logger.info("城市id"+cityId);
+                        String line=codeInfo.substring(4,6);
+                        logger.info("地铁线"+line);
+                        String train=codeInfo.substring(6,8);
+                        logger.info("列车号"+train);
+                        int part=Integer.valueOf(codeInfo.substring(8,10));
+                        logger.info("第"+(part/10)+"节车厢");
+                        logger.info((part%10)+"号门");
+
+
+
+                    }
+                    //设置采集终端时间间隔 0x7212
+                    if("7212".equals(order)){
+                        String msg="EA6A11002306010226FFFF711200000D0A";
+                        byte[] msgs = DataUtil.creatDate(msg);
+                        DatagramPacket packet = new DatagramPacket(msgs, msgs.length, address, port);
+                        socket.send(packet);
+                        logger.info("发送给终端设置终端发送间隔时间的命令为："+msg);
+                        logger.info("读取到的信息为"+data);
+                        logger.info("接受到的时间间隔"+Long.parseLong(data.substring(26,28),16)+"s");
+
+                    }
+
                 }
-            }
-
-        }
-    }
-
-    class Process implements Runnable {
-        public Process(DatagramPacket packet) throws UnsupportedEncodingException {
-            logger.info("=======接收到的UDP信息======");
-            // 接收到的UDP信息，然后解码
-            byte[] buffer = packet.getData();
-            String srt2 = bytes2HexString(buffer);
-            kafkaSender.send(srt2);
-            logger.info("=======Process srt2 UTF-8======" + srt2);
-        }
-
-        @Override
-        public void run() {
-            logger.info("====过程运行=====");
-            try {
-                logger.info("====向客户端响应数据=====");
-                //1.定义客户端的地址、端口号、数据
-                InetAddress address = packet.getAddress();
-                int port = packet.getPort();
-                byte[] data2 = "{'request':'alive','errcode':'0'}".getBytes();
-                //2.创建数据报，包含响应的数据信息
-                DatagramPacket packet2 = new DatagramPacket(data2, data2.length, address, port);
-                //3.响应客户端
-                socket.send(packet2);
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        }
 
+        }
     }
 
     @Override
@@ -131,4 +188,50 @@ public class UDPServer implements ServletContextListener {
         return ret;
     }
 
+    public static byte[] hexStringToBytes(String hexString) {
+        if (hexString == null || hexString.equals("")) {
+            return null;
+        }
+        // toUpperCase将字符串中的所有字符转换为大写
+        hexString = hexString.toUpperCase();
+        int length = hexString.length() / 2;
+        // toCharArray将此字符串转换为一个新的字符数组。
+        char[] hexChars = hexString.toCharArray();
+        byte[] d = new byte[length];
+        for (int i = 0; i < length; i++) {
+            int pos = i * 2;
+            d[i] = (byte) (charToByte(hexChars[pos]) << 4 | charToByte(hexChars[pos + 1]));
+        }
+        return d;
+    }
+
+    //返回匹配字符
+    private static byte charToByte(char c) {
+        return (byte) "0123456789ABCDEF".indexOf(c);
+    }
+
+    public static String getYearToHex(String year) {
+        logger.info("响应时间"+year);
+        StringBuilder years = new StringBuilder();
+        String string = Long.toHexString(Long.valueOf(year));
+        if (string.length() < 4) {
+            string = 0 + string;
+        }
+        years.append(string.substring(2, 4)).append(string.substring(0, 2));
+        return years.toString().toUpperCase();
+
+    }
+
+    public static String getOther(int date) {
+        logger.info("响应时间"+date);
+        StringBuilder data = new StringBuilder();
+        String string = Long.toHexString(Long.valueOf(date));
+        if (string.length() < 2) {
+            data.append(0 + string);
+        } else {
+            data.append(string);
+        }
+        return data.toString().toUpperCase();
+
+    }
 }
