@@ -2,15 +2,13 @@ package com.subwaydata.subway.service;
 
 import com.subwaydata.subway.kafka.KafkaSender;
 import com.subwaydata.subway.thread.ThreadPoolManager;
-import com.subwaydata.subway.util.CRC16Util;
 import com.subwaydata.subway.util.DataUtil;
+import com.subwaydata.subway.util.DateUtil;
+import com.subwaydata.subway.util.HexUtil;
 import org.springframework.beans.factory.annotation.Autowired;
-import sun.applet.resources.MsgAppletViewer;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
-import javax.servlet.annotation.WebListener;
-import java.io.*;
 import java.net.*;
 import java.util.Calendar;
 import java.util.logging.Logger;
@@ -18,7 +16,7 @@ import java.util.logging.Logger;
 /**
  * 服务器端，实现基于UDP的用户登陆
  */
-@WebListener
+//@WebListener
 public class UDPServer implements ServletContextListener {
     public static Logger logger = Logger.getLogger(UDPServer.class.getName());
     public static final int MAX_UDP_DATA_SIZE = 1024;
@@ -33,7 +31,6 @@ public class UDPServer implements ServletContextListener {
         try {
             logger.info("========启动一个线程，监听UDP数据报.PORT:" + UDP_PORT + "=========");
             // 启动一个线程，监听UDP数据报
-            //new Thread(new UDPProcess(UDP_PORT)).start();
             ThreadPoolManager.execute(new UDPProcess(UDP_PORT));
         } catch (Exception e) {
             e.printStackTrace();
@@ -60,7 +57,7 @@ public class UDPServer implements ServletContextListener {
                     socket.receive(packet);
                     // 接收到的UDP信息，然后解码
                     byte[] datas = packet.getData();
-                    String data = bytes2HexString(datas);
+                    String data = HexUtil.bytes2HexString(datas);
                     String order = data.substring(22, 26);
                     InetAddress address = packet.getAddress();
                     int port = packet.getPort();
@@ -93,12 +90,12 @@ public class UDPServer implements ServletContextListener {
                         StringBuilder answerSb = new StringBuilder();
                         answerSb.append("EA6A18002306010226FFFF74");
                         Calendar now = Calendar.getInstance();
-                        answerSb.append(getYearToHex(String.valueOf(now.get(Calendar.YEAR))));
-                        answerSb.append(getOther(now.get(Calendar.MONTH)+1));
-                        answerSb.append(getOther(now.get(Calendar.DAY_OF_MONTH)));
-                        answerSb.append(getOther(now.get(Calendar.HOUR_OF_DAY)));
-                        answerSb.append(getOther(now.get(Calendar.MINUTE)));
-                        answerSb.append(getOther(now.get(Calendar.SECOND)));
+                        answerSb.append(DateUtil.getYearToHex(String.valueOf(now.get(Calendar.YEAR))));
+                        answerSb.append(DateUtil.getOther(now.get(Calendar.MONTH)+1));
+                        answerSb.append(DateUtil.getOther(now.get(Calendar.DAY_OF_MONTH)));
+                        answerSb.append(DateUtil.getOther(now.get(Calendar.HOUR_OF_DAY)));
+                        answerSb.append(DateUtil.getOther(now.get(Calendar.MINUTE)));
+                        answerSb.append(DateUtil.getOther(now.get(Calendar.SECOND)));
                         answerSb.append("0000");
                         answerSb.append("0A0D");
                         byte[] answer = DataUtil.creatDate(answerSb.toString());
@@ -173,65 +170,4 @@ public class UDPServer implements ServletContextListener {
         logger.info("========UDPListener摧毁=========");
     }
 
-    /**
-     * byte[] 转为16进制String
-     */
-    public static String bytes2HexString(byte[] b) {
-        String ret = "";
-        for (int i = 0; i < b.length; i++) {
-            String hex = Integer.toHexString(b[i] & 0xFF);
-            if (hex.length() == 1) {
-                hex = '0' + hex;
-            }
-            ret += hex.toUpperCase();
-        }
-        return ret;
-    }
-
-    public static byte[] hexStringToBytes(String hexString) {
-        if (hexString == null || hexString.equals("")) {
-            return null;
-        }
-        // toUpperCase将字符串中的所有字符转换为大写
-        hexString = hexString.toUpperCase();
-        int length = hexString.length() / 2;
-        // toCharArray将此字符串转换为一个新的字符数组。
-        char[] hexChars = hexString.toCharArray();
-        byte[] d = new byte[length];
-        for (int i = 0; i < length; i++) {
-            int pos = i * 2;
-            d[i] = (byte) (charToByte(hexChars[pos]) << 4 | charToByte(hexChars[pos + 1]));
-        }
-        return d;
-    }
-
-    //返回匹配字符
-    private static byte charToByte(char c) {
-        return (byte) "0123456789ABCDEF".indexOf(c);
-    }
-
-    public static String getYearToHex(String year) {
-        logger.info("响应时间"+year);
-        StringBuilder years = new StringBuilder();
-        String string = Long.toHexString(Long.valueOf(year));
-        if (string.length() < 4) {
-            string = 0 + string;
-        }
-        years.append(string.substring(2, 4)).append(string.substring(0, 2));
-        return years.toString().toUpperCase();
-
-    }
-
-    public static String getOther(int date) {
-        logger.info("响应时间"+date);
-        StringBuilder data = new StringBuilder();
-        String string = Long.toHexString(Long.valueOf(date));
-        if (string.length() < 2) {
-            data.append(0 + string);
-        } else {
-            data.append(string);
-        }
-        return data.toString().toUpperCase();
-
-    }
 }
