@@ -17,9 +17,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 
 /**
@@ -50,13 +49,9 @@ public class SubwayApplication extends SpringBootServletInitializer {
         //设置接收器的处理程序
         acceptor.setHandler(handler);
         //建立线程池
-        ThreadPoolExecutor threadPool = new ThreadPoolExecutor(
-                10,8,10, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<Runnable>(1),
-                new ThreadPoolExecutor.DiscardOldestPolicy());
+        Executor threadPool = Executors.newFixedThreadPool(1500);
         acceptor.getFilterChain().addLast("exector", new ExecutorFilter(threadPool));
         acceptor.getFilterChain().addLast("logger", new LoggingFilter());
-       // acceptor.getFilterChain().addLast("toMessageTyep" ,  new  MyMessageEn_Decoder());;
         //建立连接的配置文件
         DatagramSessionConfig dcfg = acceptor.getSessionConfig();
         //设置接收最大字节默认2048
