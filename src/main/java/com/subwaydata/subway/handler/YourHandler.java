@@ -164,7 +164,7 @@ public class YourHandler extends IoHandlerAdapter {
      * @createDate
      **/
     @Override
-    public void sessionClosed(IoSession session) throws Exception {
+    public void sessionClosed(IoSession session)  {
         System.out.println("Session closed...");
     }
 
@@ -176,7 +176,7 @@ public class YourHandler extends IoHandlerAdapter {
      * @createDate
      **/
     @Override
-    public void sessionCreated(IoSession session) throws Exception {
+    public void sessionCreated(IoSession session)  {
         System.out.println("Session created...");
         SocketAddress remoteAddress = session.getRemoteAddress();
         System.out.println(remoteAddress);
@@ -192,7 +192,7 @@ public class YourHandler extends IoHandlerAdapter {
      * @createDate
      **/
     @Override
-    public void sessionIdle(IoSession session, IdleStatus status) throws Exception {
+    public void sessionIdle(IoSession session, IdleStatus status)  {
         System.out.println("Session idle...");
     }
 
@@ -204,7 +204,7 @@ public class YourHandler extends IoHandlerAdapter {
      * sessionCreated和sessionOpened两个事件）
      */
     @Override
-    public void sessionOpened(IoSession session) throws Exception {
+    public void sessionOpened(IoSession session)  {
         System.out.println("Session Opened...");
         SocketAddress remoteAddress = session.getRemoteAddress();
         System.out.println(remoteAddress);
