@@ -1,6 +1,7 @@
 package com.subwaydata.subway.handler;
 
 import com.subwaydata.subway.kafka.KafkaSender;
+import com.subwaydata.subway.util.CRC16Util;
 import com.subwaydata.subway.util.DataUtil;
 import com.subwaydata.subway.util.DateUtil;
 import com.subwaydata.subway.util.HexUtil;
@@ -11,8 +12,11 @@ import org.apache.mina.core.session.IoSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 import java.util.logging.Logger;
 
 /**
@@ -21,13 +25,13 @@ import java.util.logging.Logger;
  * @createDate
  **/
 @Component
-public class YourHandler extends IoHandlerAdapter {
-
-    public static Logger logger = Logger.getLogger(YourHandler.class.getName());
+public class DataHandler extends IoHandlerAdapter {
     @Autowired
     private KafkaSender<String> kafkaSenders;
-
-    /**messageSent是Server响应给Clinet成功后触发的事件*/
+    public static Logger logger = Logger.getLogger(DataHandler.class.getName());
+    /**
+     * messageSent是Server响应给Clinet成功后触发的事件
+     */
     @Override
     public void messageSent(IoSession session, Object message) throws Exception {
         if (message instanceof IoBuffer) {
@@ -58,20 +62,59 @@ public class YourHandler extends IoHandlerAdapter {
             byte[] datas = buffer.array();
             String data = HexUtil.bytes2HexString(datas);
             String order = data.substring(22, 26);
+            Integer dataSize = DataUtil.getDataSize((data.substring(4, 8)));
+            data = data.substring(0, dataSize * 2);
+            String clientIP = ((InetSocketAddress) session.getRemoteAddress()).getAddress().getHostAddress();
+            //数据包
             if ("720E".equals(order)) {
-                kafkaSenders.send(data);
-                String responsData = "EA6A110013600155265FFF720E01000100000D0A";
-                byte[] data2 = DataUtil.creatDate(responsData);
-
-                //3.响应客户端
-                //返回信息给Clinet端
-                IoBuffer buffer1 = IoBuffer.wrap(data2);
-                session.write(buffer1);
-                logger.info("向传感器响应的数据是" + responsData);
-
+                String crcCode = CRC16Util.creatCrc16_s(data.substring(0, data.length() - 8));
+                String dataCrc = data.substring(data.length() - 8, data.length() - 4);
+                StringBuilder responsData = new StringBuilder();
+                responsData.append("EA6A12002306010226FFFF720E");
+                if (crcCode.equals(dataCrc)) {
+                    kafkaSenders.sendWithTopic(data, "core_data_topic");
+                    responsData.append("01");
+                    responsData.append(CRC16Util.creatCrc16_s(responsData.toString()));
+                    responsData.append("0D0A");
+                    byte[] data2 = DataUtil.creatDate(responsData.toString());
+                    //3.响应客户端
+                    //返回信息给Clinet端
+                    IoBuffer buffer1 = IoBuffer.wrap(data2);
+                    session.write(buffer1);
+                    logger.info("向传感器响应的数据是" + responsData);
+                } else {
+                    responsData.append("00");
+                    responsData.append(CRC16Util.creatCrc16_s(responsData.toString()));
+                    logger.warning("数据校验失败，数据不正常");
+                }
             }
-
+            //心跳包
             if ("740C".equals(order)) {
+                //TODO 协议、长度、crc16校验
+                //3.响应客户端
+                String diviceStatus = data.substring(26, 28);
+                String ip = clientIP;
+                List<String> heart = new ArrayList<>();
+                heart.add(ip);
+                heart.add(diviceStatus);
+                heart.add(data.substring(8, 22));
+                kafkaSenders.sendWithTopic(heart,"heart_topic");
+                if ("00".equals(diviceStatus)) {
+                    logger.info("工作状态正常");
+                } else if ("E1".equals(diviceStatus)) {
+                    logger.info("采集终端异常");
+                } else if ("E2".equals(diviceStatus)) {
+                    logger.info("电压传感器异常");
+                } else if ("E3".equals(diviceStatus)) {
+                    logger.info("电流传感器异常");
+                } else if("E4".equals(diviceStatus)){
+                    logger.info("开合度传感器异常");
+                } else if("FF".equals(diviceStatus)){
+                    logger.info("未知异常");
+                }
+                else {
+                    logger.info("未知异常数据异常");
+                }
                 /***
                  年( 2 字 节 )
                  前低后高，比如 2019 年表示为 E3 07
@@ -94,34 +137,23 @@ public class YourHandler extends IoHandlerAdapter {
                 answerSb.append(DateUtil.getOther(now.get(Calendar.HOUR_OF_DAY)));
                 answerSb.append(DateUtil.getOther(now.get(Calendar.MINUTE)));
                 answerSb.append(DateUtil.getOther(now.get(Calendar.SECOND)));
-                answerSb.append("0000");
+                answerSb.append(CRC16Util.creatCrc16_s(answerSb.toString()));
                 answerSb.append("0A0D");
-                byte[] answer = DataUtil.creatDate(answerSb.toString());
-
-                //3.响应客户端
-                String diviceStatus = data.substring(26, 28);
-                if ("00".equals(diviceStatus)) {
-                    logger.info("工作状态正常");
-                } else if ("E1".equals(diviceStatus)) {
-                    logger.info("采集终端异常");
-                } else if ("E2".equals(diviceStatus)) {
-                    logger.info("电压传感器异常");
-                } else if ("E3".equals(diviceStatus)) {
-                    logger.info("电流传感器异常");
-                } else {
-                    logger.info("未知异常");
-                }
+                byte[] answer = DataUtil.creatDate(answerSb.toString().toUpperCase());
                 IoBuffer buffer1 = IoBuffer.wrap(answer);
                 session.write(buffer1);
                 logger.info("心跳向传感器响应的数据是" + answerSb.toString());
             }
-            //当前采集终端编码 0x7211
-            if ("7211".equals(order)) {
-                String msg = "EA6A11002306010226FFFF711100000D0A";
-                byte[] msgs = DataUtil.creatDate(msg);
-                IoBuffer buffer1 = IoBuffer.wrap(msgs);
+            //解析采集终端上传信息读取当前采集终端编码 0x7211
+           else if ("7211".equals(order)) {
+                StringBuilder resString = new StringBuilder();
+                resString.append("EA6A11002306010226FFFF71110");
+                resString.append(CRC16Util.creatCrc16_s(resString.toString()));
+                resString.append("0D0A");
+                byte[] respMsg = DataUtil.creatDate(resString.toString());
+                IoBuffer buffer1 = IoBuffer.wrap(respMsg);
                 session.write(buffer1);
-                logger.info("发送给终端读取终端编码命令为" + msg);
+                logger.info("发送给终端读取终端编码命令为" + respMsg);
                 logger.info("读取到的信息为" + data);
                 logger.info("接受到的编码为" + data.substring(26, 54));
                 //0x23 0x06 0x01 0x02 0x26 0xFF 0xFF (不足 14 位、用“F”补齐，预留)，
@@ -142,7 +174,7 @@ public class YourHandler extends IoHandlerAdapter {
 
             }
             //设置采集终端时间间隔 0x7212
-            if ("7212".equals(order)) {
+           else if ("7212".equals(order)) {
                 String msg = "EA6A11002306010226FFFF711200000D0A";
                 byte[] msgs = DataUtil.creatDate(msg);
                 IoBuffer buffer1 = IoBuffer.wrap(msgs);
@@ -150,9 +182,11 @@ public class YourHandler extends IoHandlerAdapter {
                 logger.info("发送给终端设置终端发送间隔时间的命令为：" + msg);
                 logger.info("读取到的信息为" + data);
                 logger.info("接受到的时间间隔" + Long.parseLong(data.substring(26, 28), 16) + "s");
-
             }
-            //声明这里message必须为IoBuffer类型
+           else {
+               kafkaSenders.sendWithTopic(data,"geographical_topic");
+            }
+
         }
     }
 
@@ -164,7 +198,7 @@ public class YourHandler extends IoHandlerAdapter {
      * @createDate
      **/
     @Override
-    public void sessionClosed(IoSession session)  {
+    public void sessionClosed(IoSession session) {
         System.out.println("Session closed...");
     }
 
@@ -176,10 +210,12 @@ public class YourHandler extends IoHandlerAdapter {
      * @createDate
      **/
     @Override
-    public void sessionCreated(IoSession session)  {
+    public void sessionCreated(IoSession session) {
         System.out.println("Session created...");
         SocketAddress remoteAddress = session.getRemoteAddress();
-        System.out.println(remoteAddress);
+        String clientIP = ((InetSocketAddress) session.getRemoteAddress()).getAddress().getHostAddress();
+        session.setAttribute("KEY_SESSION_CLIENT_IP", clientIP);
+        System.out.println("remoteAddress：" + remoteAddress);
 
     }
 
@@ -192,7 +228,7 @@ public class YourHandler extends IoHandlerAdapter {
      * @createDate
      **/
     @Override
-    public void sessionIdle(IoSession session, IdleStatus status)  {
+    public void sessionIdle(IoSession session, IdleStatus status) {
         System.out.println("Session idle...");
     }
 
@@ -204,7 +240,7 @@ public class YourHandler extends IoHandlerAdapter {
      * sessionCreated和sessionOpened两个事件）
      */
     @Override
-    public void sessionOpened(IoSession session)  {
+    public void sessionOpened(IoSession session) {
         System.out.println("Session Opened...");
         SocketAddress remoteAddress = session.getRemoteAddress();
         System.out.println(remoteAddress);

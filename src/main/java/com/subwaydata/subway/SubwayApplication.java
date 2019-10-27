@@ -1,13 +1,11 @@
 package com.subwaydata.subway;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.subwaydata.subway.handler.YourHandler;
+import com.subwaydata.subway.handler.DataHandler;
 import org.apache.mina.filter.executor.ExecutorFilter;
 import org.apache.mina.filter.logging.LoggingFilter;
 import org.apache.mina.transport.socket.DatagramSessionConfig;
 import org.apache.mina.transport.socket.nio.NioDatagramAcceptor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -18,8 +16,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -41,13 +37,13 @@ public class SubwayApplication extends SpringBootServletInitializer {
     }
 
     @Bean
-    CommandLineRunner serverRunner(YourHandler handler) {
+    CommandLineRunner serverRunner(DataHandler handler) {
         return strings -> {
             createUdpServer(handler);
         };
     }
 
-    private void createUdpServer(YourHandler handler) throws IOException {
+    private void createUdpServer(DataHandler handler) throws IOException {
         //创建一个UDP的接收器
         NioDatagramAcceptor acceptor = new NioDatagramAcceptor();
         //设置接收器的处理程序
